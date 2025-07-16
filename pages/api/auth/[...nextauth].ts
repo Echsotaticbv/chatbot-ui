@@ -1,5 +1,6 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
-
+import { SupabaseAdapter } from '@next-auth/supabase-adapter';
+import jwt from 'jsonwebtoken';
 import {
   NEXT_PUBLIC_SUPABASE_URL,
   SUPABASE_JWT_SECRET,
@@ -7,15 +8,14 @@ import {
 } from '@/utils/app/auth/constants';
 import { getProviders } from '@/utils/app/auth/providers';
 
-import { SupabaseAdapter } from '@next-auth/supabase-adapter';
-import jwt from 'jsonwebtoken';
+// Pre-fetch providers to avoid async issues
+const providers = await getProviders();
 
 export const authOptions: NextAuthOptions = {
-  providers: await getProviders(),
+  providers,
   session: { strategy: 'jwt' },
-
-  // Supabase adapter is only enabled if JWT secret is specified
-  adapter: SUPABASE_JWT_SECRET
+  trustHost: true, // Critical for Render/HTTPS
+  adapter: SUPABASE_JWT_SECRET && SUPABASE_SERVICE_ROLE_KEY
     ? SupabaseAdapter({
         url: NEXT_PUBLIC_SUPABASE_URL,
         secret: SUPABASE_SERVICE_ROLE_KEY,
@@ -23,17 +23,15 @@ export const authOptions: NextAuthOptions = {
     : undefined,
   callbacks: {
     async session({ session, token }) {
-      const signingSecret = SUPABASE_JWT_SECRET;
-      if (signingSecret) {
-        const payload = {
-          aud: 'authenticated',
-          exp: Math.floor(new Date(session.expires).getTime() / 1000),
-          sub: token.sub,
-          email: token.email,
-          role: 'authenticated',
-        };
-        session.customAccessToken = jwt.sign(payload, signingSecret);
-      }
+      if (!SUPABASE_JWT_SECRET) return session;
+      const payload = {
+        aud: 'authenticated',
+        exp: Math.floor(new Date(session.expires).getTime() / 1000),
+        sub: token.sub,
+        email: token.email,
+        role: 'authenticated',
+      };
+      session.customAccessToken = jwt.sign(payload, SUPABASE_JWT_SECRET);
       return session;
     },
   },
