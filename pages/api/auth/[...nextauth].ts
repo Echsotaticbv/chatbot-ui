@@ -8,13 +8,12 @@ import {
 } from '@/utils/app/auth/constants';
 import { getProviders } from '@/utils/app/auth/providers';
 
-// Pre-fetch providers to avoid async issues
-const providers = await getProviders();
+const providers = getProviders();
 
 export const authOptions: NextAuthOptions = {
   providers,
+  secret: 'f92a47deeef45c43eb68037351f92bd5', // Your secret directly added
   session: { strategy: 'jwt' },
-  trustHost: true, // Critical for Render/HTTPS
   adapter: SUPABASE_JWT_SECRET && SUPABASE_SERVICE_ROLE_KEY
     ? SupabaseAdapter({
         url: NEXT_PUBLIC_SUPABASE_URL,
@@ -35,6 +34,17 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+  cookies: {
+    sessionToken: {
+      name: '__Secure-next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: true // Required for HTTPS
+      }
+    }
+  }
 };
 
 export default NextAuth(authOptions);
